@@ -81,19 +81,16 @@ def softmax_loss_vectorized(W, X, y, reg):
     # result in loss.                                                           #
     #############################################################################
     scores = X.dot(W)
-    # subtracts max of each row from each row
     scores -= np.max(scores, axis=1, keepdims=True)
     exp_scores = np.exp(scores)
-    # normalizes by sum of each row
     probs = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)
 
-    # finds -log probabilities of correct classes
-    # as given by y
-    correct_logprobs = -np.log(probs[np.arange(num_train), y])
-    loss = np.sum(correct_logprobs) / num_train
+    # We use indexing to pull the probability of the correct class for each sample
+    correct_cls_probs = probs[np.arange(num_train), y]
+    # Adding a tiny epsilon (1e-12) prevents log(0)
+    loss = -np.sum(np.log(correct_cls_probs + 1e-12)) / num_train
     loss += reg * np.sum(W * W)
 
-    # backprop
     dscores = probs
     dscores[np.arange(num_train), y] -= 1
     dscores /= num_train
