@@ -158,7 +158,21 @@ def adam(w, dw, config=None):
     # NOTE: In order to match the reference output, please modify t _before_  #
     # using it in any calculations.                                           #
     ###########################################################################
+    lr, b1, b2 = config["learning_rate"], config["beta1"], config["beta2"]
+    eps = config["epsilon"]
+    config["t"] += 1
+    t = config["t"]
 
+    config["m"] = b1 * config["m"] + (1 - b1) * dw 
+    config["v"] = b2 * config["v"] + (1 - b2) * (dw**2)
+    
+    # Bias correction
+    # Need to be temporary variables and not 
+    # updated in the m and v arrays
+    mt_hat = config["m"] / (1 - b1**t)
+    vt_hat = config["v"] / (1 - b2**t)
+
+    next_w = w - lr * mt_hat / (np.sqrt(vt_hat) + eps)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
