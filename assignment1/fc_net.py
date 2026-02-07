@@ -231,8 +231,14 @@ class FullyConnectedNet(object):
           d_out = all_dims[i + 1]
 
           self.params[f'W{idx}'] = np.random.normal(0, weight_scale, (d_in, d_out))
-          self.params[f'b{idx}'] = np.zeros(d_out)      
-      
+          self.params[f'b{idx}'] = np.zeros(d_out)
+
+          # Last layer not normalized
+          # Gamma and beta are vectors of shape
+          # (Dout, )
+          if self.normalization == "batchnorm" and idx < self.num_layers:
+            self.params[f'gamma{idx}'] = np.ones(d_out)
+            self.params[f'beta{idx}'] = np.zeros(d_out)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -307,12 +313,19 @@ class FullyConnectedNet(object):
         caches = {}
         for i in range(self.num_layers):
           idx = i + 1
-
           W_idx, b_idx = self.params[f'W{idx}'], self.params[f'b{idx}']
+          
+          # Last layer
           if (idx == self.num_layers):
             prev, cache = affine_forward(prev, W_idx, b_idx)
           else:
-            prev, cache = affine_relu_forward(prev, W_idx, b_idx)
+            # Affine -> batchnorm -> ReLU
+            if self.normalization == "batchnorm":
+              gamma_idx, beta_idx = self.params[f'gamma{idx}'], self.params[f'beta{idx}']
+              prev, cache = affine_bn_relu_forward(prev, W_idx, b_idx, gamma_idx, beta_idx, self.bn_params[i])
+            
+            else:
+              prev, cache = affine_relu_forward(prev, W_idx, b_idx)
           
           caches[idx] = cache
         
@@ -346,7 +359,13 @@ class FullyConnectedNet(object):
           if idx == self.num_layers:
             dprev, dw_idx, db_idx = affine_backward(dprev, caches[idx])
           else:
-            dprev, dw_idx, db_idx = affine_relu_backward(dprev, caches[idx])
+            if self.normalization == "batchnorm":
+              dprev, dw_idx, db_idx, dgamma_idx, dbeta_idx = affine_bn_relu_backward(dprev, caches[idx])
+              grads[f'gamma{idx}'] = dgamma_idx
+              grads[f'beta{idx}'] = dbeta_idx
+            
+            else:
+              dprev, dw_idx, db_idx = affine_relu_backward(dprev, caches[idx])
           
           W_idx = self.params[f'W{idx}']
           
