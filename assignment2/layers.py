@@ -350,7 +350,13 @@ def layernorm_forward(x, gamma, beta, ln_param):
     # transformations you could perform, that would enable you to copy over   #
     # the batch norm code and leave it almost unchanged?                      #
     ###########################################################################
+    l_mean, l_var = np.mean(x, axis=1, keepdims=True), np.var(x, axis=1, keepdims=True)
 
+    std = np.sqrt(l_var + eps)
+    x_hat = (x - l_mean) / std
+    out = x_hat * gamma + beta
+
+    cache = (x_hat, gamma, x-l_mean, std)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -381,7 +387,18 @@ def layernorm_backward(dout, cache):
     # implementation of batch normalization. The hints to the forward pass    #
     # still apply!                                                            #
     ###########################################################################
-
+    x_hat, gamma, centered_x, std = cache
+    N, D = dout.shape
+    
+    dx_hat = dout * gamma
+    dbeta = np.sum(dout, axis=0)
+    dgamma = np.sum(dout * x_hat, axis=0)
+    
+    dx = (1. / D) / std * (
+        D * dx_hat - 
+        np.sum(dx_hat, axis=1, keepdims=True) - 
+        x_hat * np.sum(dx_hat * x_hat, axis=1, keepdims=True)
+    )
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -770,7 +787,7 @@ def softmax_loss(x, y):
     P = np.exp(x - x.max(axis=1, keepdims=True)) # numerically stable exponents
     P /= P.sum(axis=1, keepdims=True)            # row-wise probabilities (softmax)
 
-    loss = -np.log(P[range(N), y]).sum() / N # sum cross entropies as loss
+    loss = -np.log(P[range(N), y] + 1e-12).sum() / N # sum cross entropies as loss
 
     P[range(N), y] -= 1
     dx = P / N

@@ -236,9 +236,10 @@ class FullyConnectedNet(object):
           # Last layer not normalized
           # Gamma and beta are vectors of shape
           # (Dout, )
-          if self.normalization == "batchnorm" and idx < self.num_layers:
+          if self.normalization in ["batchnorm", "layernorm"] and idx < self.num_layers:
             self.params[f'gamma{idx}'] = np.ones(d_out)
             self.params[f'beta{idx}'] = np.zeros(d_out)
+
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -324,6 +325,11 @@ class FullyConnectedNet(object):
               gamma_idx, beta_idx = self.params[f'gamma{idx}'], self.params[f'beta{idx}']
               prev, cache = affine_bn_relu_forward(prev, W_idx, b_idx, gamma_idx, beta_idx, self.bn_params[i])
             
+            # Affine -> layernorm -> ReLU
+            elif self.normalization == "layernorm":
+              gamma_idx, beta_idx = self.params[f'gamma{idx}'], self.params[f'beta{idx}']
+              prev, cache = affine_ln_relu_forward(prev, W_idx, b_idx, gamma_idx, beta_idx, self.bn_params[i])
+            
             else:
               prev, cache = affine_relu_forward(prev, W_idx, b_idx)
           
@@ -361,6 +367,11 @@ class FullyConnectedNet(object):
           else:
             if self.normalization == "batchnorm":
               dprev, dw_idx, db_idx, dgamma_idx, dbeta_idx = affine_bn_relu_backward(dprev, caches[idx])
+              grads[f'gamma{idx}'] = dgamma_idx
+              grads[f'beta{idx}'] = dbeta_idx
+            
+            elif self.normalization == "layernorm":
+              dprev, dw_idx, db_idx, dgamma_idx, dbeta_idx = affine_ln_relu_backward(dprev, caches[idx])
               grads[f'gamma{idx}'] = dgamma_idx
               grads[f'beta{idx}'] = dbeta_idx
             
