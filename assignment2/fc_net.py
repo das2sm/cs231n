@@ -319,6 +319,8 @@ class FullyConnectedNet(object):
           # Last layer
           if (idx == self.num_layers):
             prev, cache = affine_forward(prev, W_idx, b_idx)
+            caches[idx] = (cache, None)
+
           else:
             # Affine -> batchnorm -> ReLU
             if self.normalization == "batchnorm":
@@ -332,8 +334,13 @@ class FullyConnectedNet(object):
             
             else:
               prev, cache = affine_relu_forward(prev, W_idx, b_idx)
-          
-          caches[idx] = cache
+            
+            if self.use_dropout:
+              prev, dropout_cache = dropout_forward(prev, self.dropout_param)   
+              caches[idx] = (cache, dropout_cache)
+            
+            else:
+              caches[idx] = (cache, None)
         
         scores = prev
         ############################################################################
@@ -362,21 +369,25 @@ class FullyConnectedNet(object):
         loss, dprev = softmax_loss(scores, y)
 
         for idx in range(self.num_layers, 0, -1):
+          cache, dropout_cache = caches[idx]
           if idx == self.num_layers:
-            dprev, dw_idx, db_idx = affine_backward(dprev, caches[idx])
+            dprev, dw_idx, db_idx = affine_backward(dprev, cache)
           else:
+            if self.use_dropout:
+              dprev = dropout_backward(dprev, dropout_cache)
+            
             if self.normalization == "batchnorm":
-              dprev, dw_idx, db_idx, dgamma_idx, dbeta_idx = affine_bn_relu_backward(dprev, caches[idx])
+              dprev, dw_idx, db_idx, dgamma_idx, dbeta_idx = affine_bn_relu_backward(dprev, cache)
               grads[f'gamma{idx}'] = dgamma_idx
               grads[f'beta{idx}'] = dbeta_idx
             
             elif self.normalization == "layernorm":
-              dprev, dw_idx, db_idx, dgamma_idx, dbeta_idx = affine_ln_relu_backward(dprev, caches[idx])
+              dprev, dw_idx, db_idx, dgamma_idx, dbeta_idx = affine_ln_relu_backward(dprev, cache)
               grads[f'gamma{idx}'] = dgamma_idx
               grads[f'beta{idx}'] = dbeta_idx
             
             else:
-              dprev, dw_idx, db_idx = affine_relu_backward(dprev, caches[idx])
+              dprev, dw_idx, db_idx = affine_relu_backward(dprev, cache)
           
           W_idx = self.params[f'W{idx}']
           
