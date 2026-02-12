@@ -722,7 +722,10 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     # vanilla version of batch normalization you implemented above.           #
     # Your implementation should be very short; ours is less than five lines. #
     ###########################################################################
-
+    N, C, H, W = x.shape
+    x_flattened = x.transpose(0, 2, 3, 1).reshape(-1, C)
+    out, cache = batchnorm_forward(x_flattened, gamma, beta, bn_param)
+    out = out.reshape(N, H, W, C).transpose(0, 3, 1, 2)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -752,7 +755,10 @@ def spatial_batchnorm_backward(dout, cache):
     # vanilla version of batch normalization you implemented above.           #
     # Your implementation should be very short; ours is less than five lines. #
     ###########################################################################
-
+    N, C, H, W = dout.shape
+    dout_flat = dout.transpose(0, 2, 3, 1).reshape(-1, C)
+    dx_flat, dgamma, dbeta = batchnorm_backward_alt(dout_flat, cache)
+    dx = dx_flat.reshape(N, H, W, C).transpose(0, 3, 1, 2)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -788,7 +794,20 @@ def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
     # the bulk of the code is similar to both train-time batch normalization  #
     # and layer normalization!                                                #
     ###########################################################################
+    N, C, H, W = x.shape
+    
+    x_5d = np.reshape(x, (N, G, C // G, H, W))
+    gn_mean = np.mean(x_5d, axis=(2, 3, 4), keepdims=True)
+    gn_var = np.var(x_5d, axis=(2, 3, 4), keepdims=True)
 
+    std = np.sqrt(gn_var + eps)
+    x_hat_5d = (x_5d - gn_mean) / std
+
+    x_hat = np.reshape(x_hat_5d, (N, C, H, W))
+
+    out = x_hat * gamma + beta
+    
+    cache = (x_hat, gamma, G, std, x_hat_5d)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -814,7 +833,23 @@ def spatial_groupnorm_backward(dout, cache):
     # TODO: Implement the backward pass for spatial group normalization.      #
     # This will be extremely similar to the layer norm implementation.        #
     ###########################################################################
+    x_hat, gamma, G, std, x_hat_5d = cache
+    N, C, H, W = dout.shape
+    
+    dbeta = np.sum(dout, axis=(0, 2, 3), keepdims=True)
+    dgamma = np.sum(dout * x_hat, axis=(0, 2, 3), keepdims=True)
+    
+    dx_hat = dout * gamma
+    dx_hat_5d = np.reshape(dx_hat, (N, G, C // G, H, W))
 
+    across_dimensions = (C//G) * H * W
+    dx_5d = (1. / across_dimensions) / std * (
+        across_dimensions * dx_hat_5d - 
+        np.sum(dx_hat_5d, axis=(2, 3, 4), keepdims=True) - 
+        x_hat_5d * np.sum(dx_hat_5d * x_hat_5d, axis=(2, 3, 4), keepdims=True)
+    )
+    
+    dx = np.reshape(dx_5d, (N, C, H, W))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -840,7 +875,17 @@ def svm_loss(x, y):
     ###########################################################################
     # TODO: Copy over your solution from A1.
     ###########################################################################
-
+    N, C = x.shape
+    
+    correct_class_scores = x[np.arange(N), y].reshape(N, 1)
+    margins = np.maximum(0, x - correct_class_scores + 1.0)
+    margins[np.arange(N), y] = 0.0
+    loss = np.sum(margins) / N
+    
+    mask = (margins > 0).astype(float)
+    violation_counts = np.sum(mask, axis=1)
+    mask[np.arange(N), y] -= violation_counts
+    dx = mask / N
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
